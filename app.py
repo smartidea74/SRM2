@@ -70,6 +70,10 @@ def run_app():
             st.error("Не бяха открити таблици в PDF файла.")
             return
 
+        skip_first = st.checkbox("Пропусни първия ред (заглавия)?", value=True)
+        if skip_first:
+            table_rows = table_rows[1:]
+
         df = convert_to_dataframe(table_rows)
         st.write("Извлечена таблица:")
         st.dataframe(df)
@@ -82,7 +86,14 @@ def run_app():
         if st.button("Добави колоната"):
             target_col_index = -selected_position
             try:
-                df[new_col_name] = df.iloc[:, target_col_index].apply(lambda val: round(safe_eval(formula, float(str(val).replace(',', '.'))), 2) if val not in [None, ''] else "")
+                def try_calc(val):
+                    try:
+                        x = float(str(val).replace(",", "."))
+                        return round(safe_eval(formula, x), 2)
+                    except:
+                        return ""
+
+                df[new_col_name] = df.iloc[:, target_col_index].apply(try_calc)
                 st.success("Колоната е добавена успешно!")
                 st.dataframe(df)
 
