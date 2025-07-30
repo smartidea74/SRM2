@@ -1,27 +1,26 @@
+# PDF to Excel Table Processor
 
-# PDF Processor with Currency Conversion
-
-This Streamlit app allows you to upload a Bulgarian invoice or stock PDF document
-and automatically adds a column **"Цена в евро"** (Price in EUR),
-calculated by dividing the **"Цена пр. с ДДС"** column by 1.95583 and rounding to 2 decimal places.
+This Streamlit app allows you to upload a Bulgarian invoice or warehouse PDF document
+and add a calculated column to the detected table using a formula.
+The result is exported as an Excel file.
 
 ## ✅ Features
-- Extracts tables from PDF documents (expected format: warehouse or invoice).
-- Adds a calculated column with euro-converted prices.
-- Generates a new PDF for download.
+- Extracts tables from PDF using pdfplumber.
+- Adds a calculated column using a user-defined formula.
+- Outputs the full modified table as a formatted Excel file.
 
 ## ▶️ How to Use
-1. Install the required packages:
+1. Install requirements:
    ```
-   pip install streamlit pandas PyMuPDF reportlab
+   pip install -r requirements.txt
    ```
 
-2. Run the Streamlit app:
+2. Run the app:
    ```
    streamlit run app.py
    ```
 
-3. Upload your PDF and download the modified version.
+3. Upload your PDF, configure the column formula, and download the Excel file.
 
 ---
 

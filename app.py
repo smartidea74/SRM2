@@ -3,9 +3,10 @@ import streamlit as st
 import pandas as pd
 import pdfplumber
 from io import BytesIO
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.units import mm
+from openpyxl import Workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.styles import Alignment, Font
+from tempfile import NamedTemporaryFile
 
 def extract_table_from_pdf_plumber(pdf_bytes):
     rows = []
@@ -20,7 +21,7 @@ def extract_table_from_pdf_plumber(pdf_bytes):
 
 def convert_to_dataframe(table_rows):
     df = pd.DataFrame(table_rows)
-    df = df.dropna(how='all')  # премахва изцяло празни редове
+    df = df.dropna(how='all')
     df = df[df.apply(lambda row: any(str(cell).strip() for cell in row), axis=1)]
     return df
 
@@ -30,36 +31,29 @@ def safe_eval(formula, x):
     except:
         return None
 
-def generate_pdf_from_dataframe(df):
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=letter)
-    c.setFont("Helvetica", 8)
+def generate_excel_from_dataframe(df):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Таблица"
 
-    x_start = 10 * mm
-    y_start = 270 * mm
-    y = y_start
+    for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), 1):
+        for c_idx, value in enumerate(row, 1):
+            cell = ws.cell(row=r_idx, column=c_idx, value=value)
+            cell.alignment = Alignment(horizontal="center")
+            if r_idx == 1:
+                cell.font = Font(bold=True)
 
-    headers = df.columns.tolist()
-    for i, header in enumerate(headers):
-        c.drawString(x_start + i * 30 * mm, y, str(header)[:20])
+    for col in ws.columns:
+        max_length = max(len(str(cell.value)) for cell in col if cell.value)
+        ws.column_dimensions[col[0].column_letter].width = max_length + 2
 
-    y -= 10
-    for _, row in df.iterrows():
-        for i, col in enumerate(headers):
-            value = row[col]
-            text = f"{value:.2f}" if isinstance(value, float) else str(value)[:20]
-            c.drawString(x_start + i * 30 * mm, y, text)
-        y -= 10
-        if y < 40:
-            c.showPage()
-            y = y_start
-
-    c.save()
-    buffer.seek(0)
-    return buffer
+    tmp = NamedTemporaryFile(delete=False, suffix=".xlsx")
+    wb.save(tmp.name)
+    tmp.seek(0)
+    return tmp.read()
 
 def run_app():
-    st.title("PDF Обработчик с PDFPlumber: Формула по позиция отдясно")
+    st.title("📄 PDF към Excel с изчислена колонка")
 
     uploaded_file = st.file_uploader("Качи PDF файл", type="pdf")
 
@@ -75,7 +69,7 @@ def run_app():
             table_rows = table_rows[1:]
 
         df = convert_to_dataframe(table_rows)
-        st.write("Извлечена таблица:")
+        st.write("📋 Извлечена таблица:")
         st.dataframe(df)
 
         max_cols = len(df.columns)
@@ -94,15 +88,15 @@ def run_app():
                         return ""
 
                 df[new_col_name] = df.iloc[:, target_col_index].apply(try_calc)
-                st.success("Колоната е добавена успешно!")
+                st.success("✅ Колоната е добавена успешно!")
                 st.dataframe(df)
 
-                pdf_bytes = generate_pdf_from_dataframe(df[[df.columns[0], new_col_name]])
+                excel_bytes = generate_excel_from_dataframe(df)
                 st.download_button(
-                    label="📥 Изтегли PDF с новата колонка",
-                    data=pdf_bytes,
-                    file_name="converted.pdf",
-                    mime="application/pdf"
+                    label="📥 Изтегли Excel с новата таблица",
+                    data=excel_bytes,
+                    file_name="converted.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
             except Exception as e:
                 st.error(f"Грешка при обработка: {e}")
