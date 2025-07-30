@@ -8,38 +8,41 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import mm
 import re
 
-def extract_table_from_pdf(pdf_bytes):
+def extract_lines_with_numbers(pdf_bytes):
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     text = ""
     for page in doc:
         text += page.get_text()
-
     lines = text.splitlines()
-    data = []
 
-    pattern = re.compile(
-        r"^(?P<name>.+?)\s+(?P<qty>\d+[\.,]?\d*)\s+(?P<price1>\d+[\.,]?\d*)\s+(?P<price2>\d+[\.,]?\d*)\s+(?P<avg>\d+[\.,]?\d*)\s+(?P<markup>\d+[\.,]?\d*)\s+(?P<total>\d+[\.,]?\d*)$"
-    )
-
+    numeric_lines = []
+    pattern = re.compile(r"(\d+[\.,]\d{2}\s+){5,}\d+[\.,]\d{2}$")  # търси редове с поне 6 десетични числа
     for line in lines:
-        match = pattern.match(line.strip())
-        if match:
+        if pattern.search(line):
+            numeric_lines.append(line.strip())
+    return numeric_lines
+
+def parse_lines_to_dataframe(lines):
+    rows = []
+    for line in lines:
+        parts = line.split()
+        numbers = []
+        texts = []
+
+        for part in parts[::-1]:
             try:
-                data.append({
-                    "Наименование": match.group("name"),
-                    "Количество": float(match.group("qty").replace(",", ".")),
-                    "Цена пр. с ДДС": float(match.group("price1").replace(",", ".")),
-                    "Цена пр. без": float(match.group("price2").replace(",", ".")),
-                    "Ср. цена": float(match.group("avg").replace(",", ".")),
-                    "Надценка": float(match.group("markup").replace(",", ".")),
-                    "Стойност": float(match.group("total").replace(",", "."))
-                })
+                numbers.insert(0, float(part.replace(",", ".")))
             except:
-                continue
+                texts.insert(0, part)
 
-    return pd.DataFrame(data)
+        if len(numbers) >= 6:
+            rows.append({
+                "Наименование": " ".join(texts),
+                "Числа": numbers
+            })
+    return pd.DataFrame(rows)
 
-def generate_modified_pdf(df):
+def generate_modified_pdf(df, col_name):
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
     c.setFont("Helvetica", 9)
@@ -50,14 +53,14 @@ def generate_modified_pdf(df):
 
     headers = df.columns.tolist()
     for i, header in enumerate(headers):
-        c.drawString(x_start + i * 30 * mm, y, header)
+        c.drawString(x_start + i * 40 * mm, y, header)
 
     y -= 10
     for _, row in df.iterrows():
         for i, col in enumerate(headers):
             value = row[col]
-            text = f"{value:.2f}" if isinstance(value, float) else str(value)[:20]
-            c.drawString(x_start + i * 30 * mm, y, text)
+            text = f"{value:.2f}" if isinstance(value, float) else str(value)[:30]
+            c.drawString(x_start + i * 40 * mm, y, text)
         y -= 10
         if y < 40:
             c.showPage()
@@ -74,31 +77,34 @@ def safe_eval(formula, x):
         return None
 
 def run_app():
-    st.title("PDF Обработчик: Формула по избор върху избрана колона")
+    st.title("PDF Обработчик: Формула по позиция отдясно")
 
     uploaded_file = st.file_uploader("Качи PDF файл", type="pdf")
 
     if uploaded_file:
-        df = extract_table_from_pdf(uploaded_file.read())
+        lines = extract_lines_with_numbers(uploaded_file.read())
+        df = parse_lines_to_dataframe(lines)
 
         if df.empty:
-            st.error("Не е открита таблица с данни.")
+            st.error("Не са открити редове с числови стойности.")
             return
 
-        st.write("Разпознати колони:")
-        st.dataframe(df.head())
+        st.write("Преглед на извлечените редове:")
+        st.dataframe(df[["Наименование", "Числа"]])
 
-        selected_column = st.selectbox("Избери колона за изчисление:", df.columns)
+        max_pos = len(df.iloc[0]["Числа"]) if not df.empty else 6
+        pos = st.number_input(f"Коя позиция отдясно да използваме? (напр. 3 = трето число отдясно)", min_value=1, max_value=max_pos, value=3)
         formula = st.text_input("Въведи формула (пример: x / 1.95583):", value="x / 1.95583")
         new_col_name = st.text_input("Име на новата колонка:", value="Цена в евро")
 
         if st.button("Добави колоната"):
             try:
-                df[new_col_name] = df[selected_column].apply(lambda x: round(safe_eval(formula, x), 2) if pd.notnull(x) else "")
+                df[new_col_name] = df["Числа"].apply(lambda lst: round(safe_eval(formula, lst[-pos]), 2) if len(lst) >= pos else "")
+                df_final = df[["Наименование", new_col_name]]
                 st.success(f"Колоната '{new_col_name}' е добавена успешно!")
-                st.dataframe(df)
+                st.dataframe(df_final)
 
-                pdf_bytes = generate_modified_pdf(df)
+                pdf_bytes = generate_modified_pdf(df_final, new_col_name)
                 st.download_button(
                     label="📥 Изтегли новия PDF",
                     data=pdf_bytes,
