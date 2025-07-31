@@ -1,27 +1,13 @@
-# PDF to Excel Table Processor
+# OCR PDF to Excel Table Extractor (Improved Column Width)
 
-This Streamlit app allows you to upload a Bulgarian invoice or warehouse PDF document
-and add a calculated column to the detected table using a formula.
-The result is exported as an Excel file.
+This Streamlit app allows you to upload a scanned or non-tabular PDF invoice and extract tabular-like data using OCR.
+You can apply a formula to a numeric column and export the result to Excel.
 
 ## ✅ Features
-- Extracts tables from PDF using pdfplumber.
-- Adds a calculated column using a user-defined formula.
-- Outputs the full modified table as a formatted Excel file.
-
-## ▶️ How to Use
-1. Install requirements:
-   ```
-   pip install -r requirements.txt
-   ```
-
-2. Run the app:
-   ```
-   streamlit run app.py
-   ```
-
-3. Upload your PDF, configure the column formula, and download the Excel file.
-
----
+- Converts PDF pages to images.
+- Applies Tesseract OCR to extract text line by line.
+- Uses pattern matching to detect rows with product, quantity, price.
+- Allows formula-based column addition.
+- Exports the final table as a formatted Excel file (with column 2 limited in width).
 
 Created by: Ваня Иванова
