@@ -73,7 +73,7 @@ def run_app():
         st.dataframe(df)
 
         max_cols = len(df.columns)
-        selected_position = st.number_input("Избери позиция на колоната отдясно (напр. 3 = трета отдясно):", min_value=1, max_value=max_cols, value=3)
+        selected_position = st.number_input("Избери позиция на колоната отдясно (напр. 3 = трета отдясно):", min_value=1, max_value=max_cols, value=5)
         formula = st.text_input("Формула (пример: x / 1.95583):", value="x / 1.95583")
         new_col_name = st.text_input("Име на новата колонка:", value="Цена в евро")
 
@@ -91,7 +91,11 @@ def run_app():
                 st.success("✅ Колоната е добавена успешно!")
                 st.dataframe(df)
 
-                excel_bytes = generate_excel_from_dataframe(df)
+                # Извличаме само избраната колона и новата колонка
+                target_col = df.columns[target_col_index]
+                df_export = df[[target_col, new_col_name]]
+
+                excel_bytes = generate_excel_from_dataframe(df_export)
                 st.download_button(
                     label="📥 Изтегли Excel с новата таблица",
                     data=excel_bytes,
